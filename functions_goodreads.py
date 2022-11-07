@@ -90,34 +90,141 @@ def get_num_of_pages(url):
     
     return int(num_of_pages)
 
+# 13 out of 30
+stats = ['cover', 'title', 'author', 'avg_rating', 'rating', 'num_ratings', 'num_pages', 'date_started', 'date_read', 'read_count', 'format', 'actions']
+
+# everything is str, later will be changed to appropriate types in pd
+translate_rating = {
+    'did not like it': '1',
+    'it was ok': '2',
+    'liked it':'3',
+    'really liked it': '4',
+    'it was amazing': '5'
+}
+
+# 3/11/2000 best format option because of the argument infer_datetime_format=True for speeding up
+
+translate_month = {
+    'Jan': '1',
+    'Feb': '2',
+    'Mar': '3',
+    'Apr': '4',
+    'May': '5',
+    'Jun': '6',
+    'Jul': '7',
+    'Aug': '8',
+    'Sep': '9',
+    'Oct': '10',
+    'Nov': '11',
+    'Dec': '12'
+}
+
+# this doesn't work
+def get_genres(book_row):
+    url = "https://goodreads.com" + book_row.find('a').get('href')
+    soup_book = get_soup_from_url(url)
+    
+    genres = []
+    elements = soup_book.find('div', {'class': re.compile("rightContainer")}).find_all('div', {'class': "elementList"})
+    print(elements)
+    
+    return genres
+
+def get_book_details(book_row):
+    book_details = {}
+    
+    for stat in stats:
+        field = book_row.find('td', {'class': stat})
+        value = field.find('div', {'class': "value"})
+        
+        # make a new function format_book_details, and make some more recursive if needed
+        if stat == 'cover':
+            value = value.find('img').get('src')
+        elif stat == 'comments':
+            value = "https://goodreads.com" + value.find('a').get('href')
+        elif stat == 'actions':
+            value = value.find('a')
+            if value.text.find('(with text)') == -1:
+                value = ''
+            else:
+                value = "https://goodreads.com" + value.get('href')
+        elif stat == 'num_pages':
+            value = value.get_text()
+            pp = value.find('pp')
+            value = value[:pp].strip()
+            if value == 'unknown':
+                value = ''
+        elif stat == 'rating':
+            value = value.find('span')
+            if value.get('title'):
+                value = translate_rating[value.get('title')]
+            else:
+                value = None
+        elif stat == 'author':
+            value = value.get_text()
+            if re.search(r'/*', value):
+                asterisk = value.find('*')
+                value = value[:asterisk]
+            value = value.strip()
+        elif stat == 'date_started' or stat == 'date_read':
+            value = value.find('div', {'class': 'date_row'}) # I will only look the last/first reading dates
+            value = value.get_text().strip()
+            comma = value.find(',')
+            if comma == -1: # if format is month year than it's gonna be None
+                value = ''
+            else:
+                value = value[0:comma] + value[comma+1:len(value)]
+                month_day_year = value.split(' ')
+                month = month_day_year[0].strip()
+                day = month_day_year[1].strip()
+                year = month_day_year[2].strip()
+                month = translate_month[month]
+                value = month + '/' + day + '/' + year
+        elif stat == 'num_ratings':
+            value = value.get_text().strip()
+            comma = value.find(',')
+            if comma == -1:
+                value = ''
+            else:
+                value = value[0:comma] + value[comma+1:len(value)]
+        else:
+            value = value.get_text().strip()
+            
+        # is string empty
+        if value == '':
+            book_details[stat] = None
+        else:
+            book_details[stat] = value
+            
+    book_details['book_url'] = "https://goodreads.com" + book_row.find('a').get('href')
+        
+    return book_details
+
 # maybe add some recursive=False to any find and find_all trhrough this .py
-# TODO: fix rating - get number of stars through spans or get translation for start and do it that way, I think the later one is better option, but I am the Alex from the past, I know nothing
-# also why some names didn't strip good and have \n on the back, oh it's because of the asterisk, remove it
+# maybe change virtual env and update python to 3.10 so I can use match case instead of this stupid elif's
 def get_books_from_page(url, page=1):
     tables = get_tables(url + "&page=" + str(page))
     book_rows = tables[1].find_all('tr', {'id': re.compile("review")})
-    stats = ['isbn13', 'cover', 'title', 'author', 'avg_rating', 'rating', 'num_ratings', 'num_pages', 'date_started', 'date_read', 'read_count', 'comments']
+    
     books = []
 
-    for row in book_rows:
-        book_details = {} # make new function get_book_details
-        for stat in stats:
-            field = row.find('td', {'class': re.compile(stat)})
-            value = field.find('div', {'class': "value"})
-            
-            if stat == 'cover':
-                value = value.find('img').get('src')
-            elif stat == 'comments':
-                value = "https://goodreads.com" + value.find('a').get('href')
-            elif stat == 'num_pages':
-                value = (value.get_text())[:-2]
-            else:
-                value = value.get_text()
-            book_details[stat] = value.strip()
+    for book_row in book_rows:
+        book_details = get_book_details(book_row)
         books.append(book_details)
 
     return books
+
+# shelf is also url/url_base
+def get_books_from_shelf(shelf):
+    num_of_pages = get_num_of_pages(shelf)
     
+    all_books = []
+    for i in range(1, num_of_pages+1):
+        book_page = get_books_from_page(shelf, i)
+        all_books.extend(book_page)
+
+    return all_books
+
 # not used currently, but maybe it will be needed later, at least for reference
 def get_default_shelves_links(url_base):
     soup_books = get_soup_from_url(url_base)
