@@ -1,11 +1,19 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-from urllib.parse import urljoin
+from urllib.parse import urlparse, urljoin
+
+s = requests.Session()
 
 def get_soup_from_url(url):
-    page = requests.get(url)
-    soup = BeautifulSoup(page.content, 'html.parser')
+    global s
+    while(True):
+        page = s.get(url, headers={'X-Requested-With':'XMLHttpRequest'})
+        cookies = s.cookies.get_dict()
+        if cookies.get('srb_8') is None or cookies['srb_8'] == '0_ar': # if there's no cookies with this name or if it has this desired value then stop looking further
+            break
+        s = requests.Session()
+    soup = BeautifulSoup(page.text, 'lxml')
     
     return soup
 
@@ -30,10 +38,10 @@ def get_all_books_soup(url):
     soup = get_soup_from_url(url)
     hyperlink = soup.find('a', string=re.compile("s bookshelves", re.I))
     dest = hyperlink.get('href')
-    page = requests.get(urljoin(url, dest))
-    soup_books = BeautifulSoup(page.content, 'html.parser')
+    page_url = urljoin(url, dest)
+    soup_books = get_soup_from_url(page_url)
     
-    return [page.url, soup_books]
+    return [page_url, soup_books]
 
 def get_url_base(url): # get_all_books
     id_gr = None
@@ -119,14 +127,14 @@ translate_month = {
     'Dec': '12'
 }
 
-# this doesn't work
-def get_genres(book_row):
-    url = "https://goodreads.com" + book_row.find('a').get('href')
-    soup_book = get_soup_from_url(url)
+def get_genres(book_url):
+    soup_book = get_soup_from_url(book_url)
     
     genres = []
-    elements = soup_book.find('div', {'class': re.compile("rightContainer")}).find_all('div', {'class': "elementList"})
-    print(elements)
+    links = soup_book.body.findAll('a', {'href': re.compile(r'/genres/')})
+    for link in links:
+        genre = link.span.get_text()
+        genres.extend([genre])
     
     return genres
 
@@ -199,8 +207,10 @@ def get_book_details(book_row):
             book_details[stat] = None
         else:
             book_details[stat] = value
-            
-    book_details['book_url'] = "https://goodreads.com" + book_row.find('a').get('href')
+    
+    book_url = "https://goodreads.com" + book_row.find('a').get('href')
+    book_details['book_url'] = book_url
+    # book_details['genres'] = get_genres(book_url)
         
     return book_details
 

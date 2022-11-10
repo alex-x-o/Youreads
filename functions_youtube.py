@@ -12,11 +12,20 @@ def get_channel_stats(youtube, channel_ids):
     response = request.execute()
     
     for item in response['items']:
+        desc = item['snippet']['description']
+        if re.search('https://www.goodreads.com', desc):
+            goodreads_pos = desc.find('https://www.goodreads.com')
+            newline_pos = desc.find('\n', goodreads_pos)
+            goodreads_link = desc[goodreads_pos:newline_pos]
+        else:
+            goodreads_link = None
+        
         data = {'channelName': item['snippet']['title'],
                 'subscribers': item['statistics']['subscriberCount'],
                 'views': item['statistics']['viewCount'],
                 'totalVideos': item['statistics']['videoCount'],
-                'playlistId': item['contentDetails']['relatedPlaylists']['uploads']
+                'playlistId': item['contentDetails']['relatedPlaylists']['uploads'],
+                'goodreadsLink': goodreads_link
         }
         
         all_data.append(data)
@@ -65,7 +74,7 @@ def get_video_details(youtube, video_ids):
                             }
 
             video_info = {}
-            video_info['video_id'] = video['id']
+            video_info['videoId'] = video['id']
 
             for k in stats_to_keep.keys():
                 for v in stats_to_keep[k]:
@@ -102,7 +111,7 @@ def get_comments_in_videos(youtube, video_ids):
             response = request.execute()
 
             comments_in_video = [comment['snippet']['topLevelComment']['snippet']['textOriginal'] for comment in response['items'][0:10]]
-            comments_in_video_info = {'video_id': video_id, 'comments': comments_in_video}
+            comments_in_video_info = {'videoId': video_id, 'comments': comments_in_video}
 
             all_comments.append(comments_in_video_info)
         except:
@@ -111,10 +120,11 @@ def get_comments_in_videos(youtube, video_ids):
     return pd.DataFrame(all_comments)
 
 def is_timestamp(comment):
+    if re.search(r'timestamps?', comment, re.I):
+        return True
     if len(re.findall(r'([0-9]{1,2}:[0-9]{2})+', comment, re.I)) > 3:
         return True
-    else:
-        return False
+    return False
 
 def get_timestamp_comments(youtube, video_ids):
     
@@ -122,11 +132,12 @@ def get_timestamp_comments(youtube, video_ids):
     
     for video_id in video_ids:
         comment_in_video = get_timestamp_comment_in_video(youtube, video_id)
-        # if comments_in_video['comment'] is None:
-        #     continue
-        all_comments.append(comments_in_video)
+        if comment_in_video is None:
+            continue
+        # print(comment_in_video)
+        all_comments.append(comment_in_video)
     
-    return all_comments # [comment1, comment2, ...]
+    return all_comments
 
 def get_timestamp_comment_in_video(youtube, video_id):
     
