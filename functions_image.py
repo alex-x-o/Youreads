@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 from sklearn.cluster import KMeans
 from collections import Counter
+from sklearn.decomposition import PCA
 
 def get_reddest_pixel(pixels, w):
     reddest_index = pixels['Red'].idxmax()
@@ -47,7 +48,7 @@ def get_info_from_image(image_url):
     image_array = np.reshape(image_np, (w * h, d))
     pixels = DataFrame(image_array, columns=['Red', 'Green', 'Blue'])
     
-    print_most_vibrant_pixels(pixels, w)
+    # print_most_vibrant_pixels(pixels, w)
     
     pixels['colour'] = [colors.to_hex(p) for p in image_array] # encoded colour string
     
@@ -80,6 +81,12 @@ def get_clusters_from_pixels(pixels, pixels_sample):
     clusters = kmeans.cluster_centers_
     return clusters, labels
 
+def get_biggest_cluster(clusters, labels):
+    labels_count = Counter(labels)
+    biggest = labels_count.most_common()[0]
+    index = biggest[0]
+    return clusters[index]
+
 def plot_labels(labels, clusters):
     labels_count = Counter(labels)
     sorted_labels = dict(sorted(labels_count.items(), key=lambda i: i[0]))
@@ -91,6 +98,24 @@ def plot_original_and_reduced_image(original, reduced):
     axarr[0].set_title("Original")
     axarr[1].imshow(reduced)
     axarr[1].set_title("RGB clustered")
+    
+def decompose_colors(colors):
+    pca = PCA(n_components=1)
+    one_d_colors = pca.fit_transform(colors)[:,0]
+    
+    ix = np.argsort(one_d_colors)
+    
+    return ix
+
+def plot_books(image_urls):
+    fig = plt.figure(figsize=(15, 15))
+    columns = len(image_urls)
+    for i in range(1, len(image_urls)+1):
+        fig.add_subplot(1, columns, i)
+        image = io.imread(image_urls[i-1])
+        plt.imshow(image)
+        plt.axis('off')
+    plt.show()
     
 if __name__ == '__main__':
     main()
