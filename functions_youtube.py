@@ -1,6 +1,17 @@
 import pandas as pd
 import re
 
+def get_goodreads_link(desc):
+    
+    goodreads_link = None
+    
+    if re.search('https://www.goodreads.com', desc):
+        goodreads_pos = desc.find('https://www.goodreads.com')
+        newline_pos = desc.find('\n', goodreads_pos)
+        goodreads_link = desc[goodreads_pos:newline_pos]
+    
+    return goodreads_link
+
 def get_channel_stats(youtube, channel_ids):
     
     all_data = []
@@ -13,12 +24,7 @@ def get_channel_stats(youtube, channel_ids):
     
     for item in response['items']:
         desc = item['snippet']['description']
-        if re.search('https://www.goodreads.com', desc):
-            goodreads_pos = desc.find('https://www.goodreads.com')
-            newline_pos = desc.find('\n', goodreads_pos)
-            goodreads_link = desc[goodreads_pos:newline_pos]
-        else:
-            goodreads_link = None
+        goodreads_link = get_goodreads_link(desc)
         
         data = {'channelName': item['snippet']['title'],
                 'subscribers': item['statistics']['subscriberCount'],
@@ -88,6 +94,7 @@ def get_video_details(youtube, video_ids):
     return pd.DataFrame(all_video_info)
 
 def get_book_related_videos(video_df):
+    
     titles = []
     for i in range(len(video_df)):
         title = video_df.loc[i, 'title']
@@ -120,9 +127,12 @@ def get_comments_in_videos(youtube, video_ids):
     return pd.DataFrame(all_comments)
 
 def is_timestamp(comment):
+    
     if re.search(r'timestamps?', comment, re.I):
         return True
-    if len(re.findall(r'([0-9]{1,2}:[0-9]{2})+', comment, re.I)) > 3:
+    if len(re.findall(r'([0-9]{1,2}:[0-9]{2})+', comment)) > 3:
+        return True
+    if len(re.findall(r'([0-9]\.)+', comment)) > 3:
         return True
     return False
 
@@ -165,6 +175,27 @@ def get_timestamp_comment_in_video(youtube, video_id):
             break
     
     return timestamp_comment
+
+def get_timestamp_from_video_desc(video_desc):
+    
+    timestamp = None
+    
+    if is_timestamp(video_desc):
+        timestamp = video_desc
+        
+    return timestamp
+
+def get_books(timestamp):
+    
+    books = []
+    rx_books = re.compile(r'(?:[0-9]+\.|[0-9]{1,}:[0-9]{2})((?:[ \t]+[a-zA-Z0-9_"():]+(?:-[a-z]+)*)+)', re.M)
+
+    for match in rx_books.finditer(timestamp):
+        book = match.group(1)
+        book = book.strip()
+        books.append(book)
+        
+    return books
     
 if __name__ == '__main__':
     main()
