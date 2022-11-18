@@ -193,9 +193,15 @@ def get_books(timestamp):
     for match in rx_books.finditer(timestamp):
         book = match.group(1)
         book = book.strip()
-        books.append(book)
-        
-    return books
+        # split with by and check why with some there is still timestamp
+        # see how to find more books just with something like Anmdffk Skgjkddm
+        if book not in ['intro', 'welcome']:
+            books.append(book)
+    
+    if len(books) > 1:
+        return books
+    else:
+        return None
     
 if __name__ == '__main__':
     main()
