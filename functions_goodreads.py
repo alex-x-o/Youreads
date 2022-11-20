@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urlparse, urljoin
+import numpy as np
 
 s = requests.Session()
 
@@ -91,6 +92,10 @@ def get_database_columns(url):
 def get_num_of_pages(url):
     soup = get_soup_from_url(url)
     pages = soup.find('div', {'id': "reviewPagination"})
+    
+    if pages is None:
+        return 1
+    
     pages_links = pages.find_all('a')
     
     last_page = pages_links[len(pages_links)-2]
@@ -136,7 +141,20 @@ def get_genres(book_url):
         genre = link.span.get_text()
         genres.extend([genre])
     
-    return genres
+    if len(genres) > 1:
+        return genres
+    else:
+        return None
+    
+def remove_commas(value):
+    
+    while(True):
+        comma = value.find(',')
+        if comma == -1:
+            break
+        value = value[0:comma] + value[comma+1:len(value)]
+        
+    return value
 
 def format_book_details(stat, value):
     if stat == 'cover':
@@ -155,12 +173,14 @@ def format_book_details(stat, value):
         value = value[:pp].strip()
         if value == 'unknown':
             value = ''
+        else:
+            value = remove_commas(value)
     elif stat == 'rating':
         value = value.find('span')
         if value.get('title'):
             value = translate_rating[value.get('title')]
         else:
-            value = None
+            value = ''
     elif stat == 'author':
         value = value.get_text()
         if re.search(r'/*', value):
@@ -171,7 +191,7 @@ def format_book_details(stat, value):
         value = value.find('div', {'class': 'date_row'}) # I will only look the last/first reading dates
         value = value.get_text().strip()
         comma = value.find(',')
-        if comma == -1: # if format is month year than it's gonna be None
+        if comma == -1: # if format is month year than it's gonna be NaN
             value = ''
         else:
             value = value[0:comma] + value[comma+1:len(value)]
@@ -180,14 +200,10 @@ def format_book_details(stat, value):
             day = month_day_year[1].strip()
             year = month_day_year[2].strip()
             month = translate_month[month]
-            value = month + '/' + day + '/' + year
+            value = day + '/' + month + '/' + year
     elif stat == 'num_ratings':
         value = value.get_text().strip()
-        comma = value.find(',')
-        if comma == -1:
-            value = ''
-        else:
-            value = value[0:comma] + value[comma+1:len(value)]
+        value = remove_commas(value)
     else:
         value = value.get_text().strip()
         
@@ -204,13 +220,13 @@ def get_book_details(book_row):
         
         # is string empty
         if value == '':
-            book_details[stat] = None
+            book_details[stat] = np.nan
         else:
             book_details[stat] = value
     
     book_url = "https://goodreads.com" + book_row.find('a').get('href')
     book_details['book_url'] = book_url
-    # book_details['genres'] = get_genres(book_url)
+    book_details['genres'] = get_genres(book_url)
         
     return book_details
 

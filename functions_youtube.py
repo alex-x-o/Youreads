@@ -75,8 +75,8 @@ def get_video_details(youtube, video_ids):
         for video in response['items']:
             # TODO: clean unnecessary columns
             stats_to_keep = {'snippet': ['channelTitle', 'title', 'description', 'tags', 'publishedAt'],
-                             'statistics': ['viewCount', 'likeCount', 'favouriteCount', 'commentCount'],
-                             'contentDetails': ['duration', 'definition', 'caption']
+                             'statistics': ['viewCount', 'likeCount', 'commentCount'],
+                             'contentDetails': ['duration']
                             }
 
             video_info = {}
